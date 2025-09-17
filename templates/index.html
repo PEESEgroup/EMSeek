@@ -1,0 +1,1699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>EMSeek</title>
+  <!-- Bulma & FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" referrerpolicy="no-referrer" />
+  <!-- marked.js & highlight.js (Markdown + code highlighting) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      min-height: 100%;
+      background: var(--background);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    :root {
+      /* Theme */
+      --background: #ffffff;       /* Page background */
+      --user-bubble: #f3f3f3;      /* User bubble */
+      --bot-bubble: #ffffff;       /* Assistant bubble */
+      --accent: #6c8cd5;           /* Accent color */
+      --text-color: #333333;       /* Body text */
+      --icon-color: #555555;       /* Icon color */
+      --border-color: #e6e6e6;     /* Light gray */
+      --border-color-focus: #d0d7ea; /* Lighter on focus */
+      /* Samples tint (pure white) */
+      --sample-bg: #ffffff;
+      --sample-bg-hover: #ffffff;
+      --sample-border: #e8e8e8;
+      --sample-border-hover: #dcdcdc;
+      /* Reserve some bottom spacing */
+      --bottom-gap: 16px;
+      /* Minimum heights to keep input and its card stable when empty */
+      --input-card-min-height: 120px;
+      --textarea-min-height: 38px;
+    }
+
+    /* Main container height: progressively enhance with dvh/svh/vh for mobile URL bar */
+    .container {
+      margin: 10px auto;
+      max-width: 1000px;
+
+      /* Fallback → progressive enhancement → latest */
+      height: calc(100vh - 20px);     /* fallback */
+      height: calc(100svh - 20px);    /* when supported */
+      height: calc(100dvh - 20px);    /* most precise */
+
+      display: flex;
+      flex-direction: column;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* Chat container */
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--background);
+      border-radius: 10px;
+      overflow: hidden;
+
+      /* When no messages: center the input area vertically */
+      justify-content: center;
+    }
+
+    /* With messages: return to standard top-to-bottom layout */
+    .chat-main.has-messages {
+      justify-content: flex-start;
+    }
+
+    /* Intro header + samples visible only before first send */
+    .intro-area { text-align: center; margin: 0 0 16px 0; color: var(--text-color); }
+    .intro-title { font-size: 28px; font-weight: 800; letter-spacing: 0.5px; margin: 0; }
+    .intro-desc { font-size: 14px; color: #666; margin-top: 6px; }
+
+    .samples-area {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      width: 80%;
+      margin: 10px auto 0 auto;
+    }
+    .sample-card {
+      background: var(--sample-bg);
+      color: var(--text-color);
+      border: 1px solid var(--sample-border);
+      border-radius: 12px;
+      padding: 10px;
+      height: 110px; /* keep consistent size */
+      cursor: pointer;
+      transition: background .15s ease, box-shadow .15s ease, border-color .15s ease;
+      user-select: none;
+      display: flex;
+      align-items: center;
+    }
+    .sample-card:hover { background: var(--sample-bg-hover); border-color: var(--sample-border-hover); box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    .sample-inner { display: flex; align-items: center; gap: 10px; width: 100%; }
+    .sample-thumb { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; background: #fff; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #777; font-weight: 700; }
+    .sample-thumb.placeholder { background: #f0f0f0; }
+    .sample-text { font-size: 13px; line-height: 1.25; color: var(--text-color); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    /* History suggestions overlay (does not affect layout) */
+    .history-suggestions-area {
+      position: fixed; /* overlay above layout */
+      z-index: 1250;
+      box-sizing: border-box;
+      /* left, bottom, width set via JS to align above input */
+
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      max-width: 1000px;
+      max-height: 45vh;
+      overflow: auto;
+
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06);
+      margin: 0;
+    }
+    .history-chip {
+      background: var(--user-bubble);
+      color: var(--text-color);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 10px;
+      height: 90px;
+      cursor: pointer;
+      transition: background .15s ease, box-shadow .15s ease, border-color .15s ease, transform .2s ease, opacity .2s ease;
+      user-select: none;
+      display: flex; align-items: center;
+      position: relative; /* for delete button overlay */
+      opacity: 0; transform: translateY(6px);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .history-chip.show { opacity: 1; transform: translateY(0); }
+    .history-chip.hide { opacity: 0; transform: translateY(6px); }
+    .history-chip:hover { background: #efefef; border-color: var(--border-color-focus); box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    .history-chip-inner { display: flex; align-items: center; gap: 10px; width: 100%; }
+    .history-thumb { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: #fff; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #777; font-weight: 700; }
+    .history-thumb.placeholder { background: #e9e9e9; }
+    .history-text { font-size: 13px; line-height: 1.25; color: var(--text-color); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    /* Delete button on history chip */
+    .history-chip .chip-delete { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--icon-color); background: rgba(255,255,255,0.9); border: 1px solid var(--border-color); }
+    .history-chip .chip-delete:hover { background: #fff; border-color: var(--border-color-focus); }
+    /* Toasts (fixed side notifications, do not affect layout) */
+    .toast-container {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 1500;
+      pointer-events: none;
+    }
+    .toast {
+      min-width: 220px;
+      max-width: 360px;
+      background: #fffdf3;
+      color: #8a6d3b;
+      border: 1px solid #faebcc;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+      opacity: 0;
+      transform: translateX(12px);
+      transition: opacity .2s ease, transform .2s ease;
+      pointer-events: auto;
+    }
+    .toast.show { opacity: 1; transform: translateX(0); }
+    .chat-main.has-messages .intro-area,
+    .chat-main.has-messages .samples-area { display: none; }
+
+    /* Message list area */
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 80%;
+      margin: 0 auto;
+
+      /* Scrollbar */
+      -ms-overflow-style: auto;
+      scrollbar-width: thin;
+    }
+
+    /* Hide messages when empty so the input sits truly centered */
+    .chat-main:not(.has-messages) .chat-messages {
+      display: none;
+    }
+
+    /* Message bubbles */
+    .chat-message {
+      display: flex;
+      align-items: flex-start;
+      opacity: 0;
+      animation: fadeIn .2s forwards;
+    }
+
+    .chat-message.user {
+      justify-content: flex-end;
+    }
+
+    .chat-bubble {
+      max-width: 90%;
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 16px;
+      word-wrap: break-word;
+      white-space: normal;
+      font-size: 15px;
+      line-height: 1.4;
+    }
+
+    .chat-bubble.plain { white-space: pre-wrap; }
+
+    .chat-message.user .chat-bubble {
+      background: var(--user-bubble);
+      color: var(--text-color);
+      border-top-right-radius: 6px;
+    }
+
+    .chat-message.bot .chat-bubble {
+      background: var(--bot-bubble);
+      color: var(--text-color);
+      border-top-left-radius: 6px;
+    }
+
+    /* Markdown tweaks */
+    .chat-bubble h1,
+    .chat-bubble h2,
+    .chat-bubble h3,
+    .chat-bubble h4,
+    .chat-bubble h5,
+    .chat-bubble h6 {
+      margin: 0.05em 0;
+      font-weight: bold;
+    }
+    .chat-bubble pre {
+      background: #2d2d2d; color: #f8f8f2;
+      padding: 10px; overflow-x: auto;
+      border-radius: 6px; font-size: 13px;
+    }
+    .chat-bubble code {
+      background: #f5f5f5; padding: 2px 4px; border-radius: 4px;
+      font-size: 13px;
+    }
+    .chat-bubble p { margin: 0.03em 0; line-height: 1.3; }
+    .chat-bubble ul, .chat-bubble ol { margin: 0.03em 0 0.03em 1.2em; line-height: 1.15; }
+    .chat-bubble li { margin: 0.01em 0; }
+    .chat-bubble > *:last-child { margin-bottom: 0; }
+    .chat-bubble p:last-child,
+    .chat-bubble ul:last-child,
+    .chat-bubble ol:last-child { margin-bottom: 0; }
+
+    /* Input area (white card centered/at bottom) */
+    .chat-input-container {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px;
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      background: #ffffff;
+      width: 80%;
+      margin: 0 auto;                 /* No extra vertical margin when empty; keep centered */
+      border-radius: 20px;
+
+      border: 1px solid var(--border-color);
+      outline: none;
+      background-clip: padding-box;
+
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      transition: box-shadow .2s ease;
+      /* Keep a stable minimum height even when no text */
+      min-height: var(--input-card-min-height);
+    }
+
+    /* With messages: input area sticks to bottom with some margin */
+    .chat-main.has-messages .chat-input-container {
+      margin-top: auto;                      /* Push to bottom */
+      margin-bottom: var(--bottom-gap);      /* Keep a small gap from bottom */
+    }
+
+    .chat-input-container:focus-within {
+      border-color: var(--border-color-focus);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06);
+    }
+
+    /* Attachment preview (inside input area) */
+    .attachment-preview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 0;
+    }
+    .attachment-preview[hidden] { display: none; }
+
+    .attachment-item {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--user-bubble);
+      cursor: pointer;
+      user-select: none;
+    }
+    .attachment-item img { width: 100%; height: 100%; object-fit: cover; }
+    .attachment-item canvas {
+      position: absolute; inset: 0; pointer-events: none;
+    }
+
+    .attachment-file-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #fff;
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 13px;
+      color: var(--text-color);
+      cursor: default;
+    }
+
+    .delete-btn {
+      position: absolute;
+      top: 2px; right: 2px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.4);
+      color: var(--icon-color);
+      font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .delete-btn:hover { background: rgba(255,255,255,0.6); }
+
+    /* Model select */
+    .model-select { position: relative; margin: 0 8px; display: flex; align-items: center; }
+    .model-select select {
+      appearance: none;
+      background: #ffffff;
+      color: var(--text-color);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 6px 28px 6px 10px;
+      font-size: 14px;
+      height: 32px; /* align with icon size */
+      max-width: 260px;
+    }
+    .model-select::after {
+      content: ''; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid var(--icon-color);
+      pointer-events: none;
+    }
+
+    .chat-messages,
+    .chat-textarea {
+      scrollbar-color: rgba(0,0,0,0.15) #ffffff; /* thumb / track */
+      scrollbar-width: thin;
+    }
+
+    /* Textarea */
+    .chat-textarea {
+      width: 100%;
+      min-height: var(--textarea-min-height);
+      max-height: 200px;
+      resize: none;
+      padding: 8px 12px;
+      border-radius: 22px;
+      border: none;
+      outline: none;
+      font-size: 14px;
+      overflow-y: auto;
+      background: #ffffff;
+      color: var(--text-color);
+    }
+
+    /* Action row: left attachments+model, send on the right */
+    .input-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: nowrap;
+      margin-top: auto; /* stick to bottom of input card */
+    }
+
+    .action-left { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
+    .action-right { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+
+    .upload-plus-btn,
+    .chat-send-button {
+      border: none; background: none; cursor: pointer;
+      font-size: 20px; color: var(--icon-color);
+      transition: color .2s ease;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .upload-plus-btn:hover,
+    .chat-send-button:hover { color: var(--accent); }
+
+    /* Thumbnail */
+    .thumb-wrap {
+      display: inline-block;
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+      border: none;
+      cursor: pointer;
+      user-select: none;
+      margin-top: 8px;
+    }
+    .thumb-img { display: block; max-width: 240px; height: auto; }
+
+    .thumb-overlay { position: absolute; left: 0; top: 0; pointer-events: none; }
+
+    /* Thumbnails inside chat bubbles are smaller */
+    .chat-message .thumb-wrap { width: 120px; height: auto; margin-top: 6px; }
+    .chat-message .thumb-wrap .thumb-img { width: 100%; height: auto; }
+
+    /* Thumbnails in attachment preview are fixed small squares */
+    .attachment-preview .thumb-wrap { width: 80px; height: 80px; margin-top: 0; }
+    .attachment-preview .thumb-img { width: 100%; height: 100%; object-fit: cover; }
+
+    /* Modal overlay for zoom + bbox drawing */
+    #modalOverlay {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8);
+      display: none; align-items: center; justify-content: center; z-index: 1000;
+    }
+    #modalCanvas {
+      background: none; cursor: crosshair; border-radius: 0;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      max-width: 98vw; max-height: 95vh;
+    }
+
+    /* Modal overlay for zoom-only (no bbox editing) */
+    #chatImageModalOverlay {
+      position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.8);
+      display: none; align-items: center; justify-content: center; z-index: 1100;
+    }
+    #chatImageModalOverlay img {
+      max-width: 95%; max-height: 95%; border-radius: 0; cursor: pointer;
+    }
+
+    /* Page/input scrollbar fine-tuning */
+    .chat-messages::-webkit-scrollbar,
+    .chat-textarea::-webkit-scrollbar { width: 6px; }
+    .chat-messages::-webkit-scrollbar-thumb,
+    .chat-textarea::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.05); border-radius: 3px; }
+    .chat-messages::-webkit-scrollbar-track,
+    .chat-textarea::-webkit-scrollbar-track { background-color: #ffffff; }
+
+    .chat-input-container *::-webkit-scrollbar { width: 5px; }
+    .chat-input-container *::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.05); border-radius: 2px; }
+    .chat-input-container *::-webkit-scrollbar-track { background-color: #ffffff; }
+
+    body::-webkit-scrollbar { width: 6px; }
+    body::-webkit-scrollbar-thumb { background-color: rgba(0, 0, 0, 0.05); border-radius: 3px; }
+    body::-webkit-scrollbar-track { background-color: #ffffff; }
+
+    /* bbox overlay */
+    .bbox-overlay {
+      position: absolute; border: 2px solid red; pointer-events: none;
+      box-sizing: border-box; display: none;
+    }
+
+    /* typing & fade-in */
+    .typing { display: inline-flex; gap: 4px; align-items: flex-end; }
+    .typing .dot { width: 6px; height: 6px; border-radius: 50%; background: #999; animation: typingBlink 1s infinite ease-in-out; }
+    .typing .dot:nth-child(2) { animation-delay: .2s; }
+    .typing .dot:nth-child(3) { animation-delay: .4s; }
+    @keyframes typingBlink { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+
+    @keyframes fadeIn { to { opacity: 1; } }
+
+    /* loading spinner */
+    .spinner { width: 14px; height: 14px; border: 2px solid #ccc; border-top: 2px solid #999; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* file pill */
+    .file-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 10px; background: #ffffff; border: none; border-radius: 8px;
+      font-size: 13px; color: var(--text-color); cursor: default;
+    }
+    .file-pill .name { font-weight: 600; }
+    .file-pill .meta { color: #666; }
+
+    /* Chain-of-thought styles (UI only; not model reasoning) */
+    .thinking-label {
+      font-size: 12px; color: #888; text-transform: lowercase; animation: blink 1s infinite; margin-bottom: 5px; cursor: pointer;
+    }
+    @keyframes blink { 0%{opacity:1} 50%{opacity:.5} 100%{opacity:1} }
+
+    .cot-container {
+      box-sizing: border-box; font-size: 13px; color: #555; background-color: #f3f3f3;
+      padding: 5px; border-radius: 4px; margin-bottom: 5px; overflow: hidden;
+      transition: max-height 0.4s ease, opacity 0.4s ease, padding 0.4s ease, margin 0.4s ease;
+    }
+    .cot-container.collapsed { max-height: 0 !important; opacity: 0; padding: 0; margin-bottom: 0; }
+    .cot-item { opacity: 0; animation: fadeIn 0.4s forwards; }
+    .final-response { margin-top: 5px; font-size: 15px; color: #333; transition: opacity 0.4s ease; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="layout" style="display:flex; gap:16px; height:100%;">
+      <div style="flex:1; min-width:0; display:flex;">
+        <div class="chat-main" id="chatMain" style="flex:1;">
+      <div id="chatArea" class="chat-messages"></div>
+
+      <!-- Input card: centered by default; sticks to bottom once messages exist, leaving --bottom-gap -->
+      <!-- Intro header (visible before first message) -->
+      <div id="introArea" class="intro-area">
+        <h1 class="intro-title">EMSeek</h1>
+        <div class="intro-desc">Bridging Electron Microscopy and Materials Analysis with an Autonomous Agentic Platform</div>
+      </div>
+
+      <!-- History suggestions (above the input; toggled via history icon) -->
+      <div id="historySuggestionsArea" class="history-suggestions-area" style="display:none;"></div>
+
+      <div class="chat-input-container">
+        <!-- Attachment preview -->
+        <div id="attachmentPreview" class="attachment-preview" hidden></div>
+
+        <!-- Text input -->
+        <textarea id="chatInput" class="chat-textarea" placeholder=""></textarea>
+
+        <!-- Action row -->
+        <div class="input-actions">
+          <div class="action-left">
+            <button class="chat-send-button" id="historyToggle" title="History" aria-label="History">
+              <i class="fa-solid fa-clock-rotate-left"></i>
+            </button>
+            <!-- Model select -->
+            <div class="model-select">
+              <select id="modelSelect">
+                <option value="general_model">General model</option>
+                <option value="atomic_column_identification">Atomic column identification</option>
+                <option value="atom_defects_detection">Atom defects detection</option>
+                <option value="single_atom_catalyst_recognition">Single-atom catalyst recognition</option>
+                <option value="nanoparticle_recognition">Nanoparticle recognition</option>
+                <option value="irradiated_alloy_defect_analysis">Irradiated alloy defect analysis</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="action-right">
+            <button class="upload-plus-btn" id="plusBtn" title="Upload image or .cif file">
+              <span style="font-weight:600;">+</span>
+            </button>
+            <button class="chat-send-button" id="clearBtn" title="Clear messages">
+              <i class="fa-solid fa-eraser"></i>
+            </button>
+            <button class="chat-send-button" id="sendBtn" title="Send">
+              <span style="font-weight:600;">➤</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Hidden file input -->
+        <input id="fileInput" type="file" accept="image/*,.cif" multiple style="display:none;">
+      </div>
+
+      <!-- Sample prompts (below the input; click to auto-fill. A and B show thumbnails) -->
+      <div id="samplesArea" class="samples-area"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal overlay for bbox editing canvas -->
+  <div id="modalOverlay">
+    <canvas id="modalCanvas"></canvas>
+  </div>
+
+  <!-- Modal overlay for zoom-only (no bbox editing) -->
+  <div id="chatImageModalOverlay" onclick="closeChatImageModal(event)">
+    <div id="chatImageWrapper" style="position: relative;">
+      <img id="chatModalImage" alt="Enlarged Image">
+      <div id="chatBBoxOverlay" class="bbox-overlay" style="display:none;"></div>
+    </div>
+  </div>
+
+  <script>
+    // Markdown configuration (highlighting)
+    if (window.marked) {
+      marked.setOptions({
+        highlight: function(code, lang) {
+          try {
+            if (lang && hljs.getLanguage(lang)) {
+              return hljs.highlight(code, { language: lang }).value;
+            }
+            return hljs.highlightAuto(code).value;
+          } catch { return code; }
+        }
+      });
+    }
+
+    // Global refs
+    const chatMain  = document.getElementById('chatMain');
+    const chatArea  = document.getElementById('chatArea');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn   = document.getElementById('sendBtn');
+    const clearBtn  = document.getElementById('clearBtn');
+    const plusBtn   = document.getElementById('plusBtn');
+    const fileInput = document.getElementById('fileInput');
+    const attachmentPreview = document.getElementById('attachmentPreview');
+    const modelSelect = document.getElementById('modelSelect');
+    const sendBtnOriginalHTML = sendBtn.innerHTML;
+    const historyToggle = document.getElementById('historyToggle');
+    const historySuggestions = document.getElementById('historySuggestionsArea');
+
+    // View state
+    function setSendButtonLoading(state) {
+      if (state) {
+        sendBtn.innerHTML = '<span class="spinner"></span>';
+        sendBtn.style.color = '#777'; sendBtn.style.cursor = 'default';
+        sendBtn.disabled = true;
+      } else {
+        sendBtn.innerHTML = sendBtnOriginalHTML;
+        sendBtn.style.color = 'var(--icon-color)'; sendBtn.style.cursor = 'pointer';
+        sendBtn.disabled = false;
+      }
+    }
+
+    // ====== Toggle center/bottom layout based on whether messages exist ======
+    function updateLayoutClass() {
+      const has = chatArea && chatArea.children && chatArea.children.length > 0;
+      if (has) chatMain.classList.add('has-messages');
+      else chatMain.classList.remove('has-messages');
+    }
+
+    // ====== Image/file storage & handling ======
+    const imageStore = {};   // id -> {dataURL, width, height, thumbURL, bbox}
+    const cifStore   = {};   // id -> {name, size, text}
+    let selectedImageId = null;
+    let selectedCifId   = null;
+
+    // Modal canvas state
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalCanvas  = document.getElementById('modalCanvas');
+    const mctx         = modalCanvas.getContext('2d');
+    let isDrawing = false, startX = 0, startY = 0, modalBBox = null, s_modal = 1;
+
+    // Generate unique id
+    const uid = () => 'id_' + Math.random().toString(36).slice(2) + Date.now();
+
+    // Textarea auto-resize & placeholder line-height
+    function updateTextareaHeight() {
+      chatInput.style.height = 'auto';
+      const computed = window.getComputedStyle(chatInput);
+      const minH = parseFloat(computed.minHeight) || 0;
+      let usedH;
+      if (!chatInput.value.trim()) {
+        // When empty, force minimal height
+        usedH = minH;
+      } else {
+        const nextH = Math.min(chatInput.scrollHeight, 200);
+        usedH = Math.max(nextH, minH);
+      }
+      chatInput.style.height = usedH + 'px';
+      const h = chatInput.clientHeight;
+      const style = window.getComputedStyle(chatInput);
+      const padTop = parseFloat(style.paddingTop);
+      const padBottom = parseFloat(style.paddingBottom);
+      const innerHeight = h - padTop - padBottom;
+      if (!chatInput.value.trim()) {
+        chatInput.style.lineHeight = innerHeight + 'px';
+      } else {
+        chatInput.style.lineHeight = '20px';
+      }
+    }
+    chatInput.addEventListener('input', updateTextareaHeight);
+    updateTextareaHeight();
+
+    // Attach an image from a server URL into the attachment preview (used by sample A)
+    async function attachImageFromUrl(url) {
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('Failed to fetch sample image');
+        const blob = await resp.blob();
+        const name = (url.split('/')?.pop()) || 'sample.png';
+        const file = new File([blob], name, { type: blob.type || 'image/png' });
+        const id = await handleImageFile(file);
+        // Remember the server path so we can send a lightweight reference instead of base64
+        if (id && imageStore[id]) {
+          imageStore[id].originPath = url; // e.g. /api/samples/foo.png
+        }
+      } catch (e) {
+        console.warn('attachImageFromUrl failed:', e);
+      }
+    }
+
+    // Randomized sample cards with consistent sizes and optional thumbnails
+    function randomOf(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function populateSamples() {
+      const samplesEl = document.getElementById('samplesArea');
+      if (!samplesEl) return;
+      samplesEl.innerHTML = '';
+
+      const sampleImages = [
+        { file: 'oblique_AgBiSb2S6-1cbf0237027e_supercell_24x20x1_dose30000_sampling0.1_iDPC_V3.png', elements: ['Ag','Bi','Sb','S'] }
+      ];
+
+      // Sample A: segmentation on EM image
+      const imgA = randomOf(sampleImages);
+      const elemsA = imgA.elements.join(', ');
+      const promptsA = [
+        `Segment atoms in this EM image and find the closest CIF with elements ${elemsA}.`,
+      ];
+      const textA = randomOf(promptsA);
+
+      // Sample B: retrieve similar CIF given image + elements
+      const imgB = randomOf(sampleImages);
+      const elemsB = imgB.elements.join(', ');
+      const promptsB = [
+        `Using this EM image with elements ${elemsB}, find the closest CIF and summarize symmetry, lattice parameters and formation energy.`,
+        `With this EM image and elements ${elemsB}, search for a similar CIF and discuss its electronic and structural properties.`
+      ];
+      const textB = randomOf(promptsB);
+
+      // Sample C: materials science question (no image)
+      const promptsC = [
+        'How do irradiation-induced defect clusters evolve in FCC alloys at high dose?',
+        'What factors control atomic column contrast in HAADF-STEM imaging?',
+        'How does electron dose influence imaging of beam-sensitive materials?',
+        'What mechanisms govern grain boundary segregation in multicomponent alloys?',
+        'How do stacking faults affect the diffraction pattern of layered materials?'
+      ];
+      const textC = randomOf(promptsC);
+
+      const cards = [
+        { text: textA, image: imgA.file },
+        { text: textB, image: imgB.file },
+        { text: textC, image: null }
+      ];
+
+      cards.forEach(card => {
+        const el = document.createElement('div');
+        el.className = 'sample-card';
+        el.dataset.text = card.text;
+        if (card.image) el.dataset.image = card.image;
+        el.innerHTML = `
+          <div class="sample-inner">
+            ${card.image ? `<img class=\"sample-thumb\" src=\"/api/samples/${card.image}\" alt=\"sample\">` : `<div class=\"sample-thumb placeholder\">Q</div>`}
+            <div class="sample-text">${card.text}</div>
+          </div>`;
+        el.addEventListener('click', async () => {
+          // Selecting a sample should start a new session on next send
+          forceNewSessionNextSend = true;
+          currentSessionId = null;
+          try { showNotice('Starting a new chat'); } catch {}
+          chatInput.value = card.text;
+          updateTextareaHeight();
+          if (card.image) {
+            await attachImageFromUrl(`/api/samples/${card.image}`);
+          }
+          chatInput.focus();
+        });
+        samplesEl.appendChild(el);
+      });
+    }
+    // Initial population
+    populateSamples();
+
+    // Open file chooser
+    plusBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      for (const f of files) {
+        if (f.type && f.type.startsWith('image/')) {
+          await handleImageFile(f);
+        } else if (f.name.toLowerCase().endsWith('.cif')) {
+          await handleCifFile(f);
+        } else {
+          addMessageBubble('bot', `Unsupported file type: **${f.name}**`);
+        }
+      }
+      fileInput.value = '';
+    });
+
+    async function handleImageFile(file) {
+      const id = uid();
+      const dataURL = await readAsDataURL(file);
+      const img = await loadImage(dataURL);
+      const { thumbURL } = makeThumbnail(img, 240);
+      imageStore[id] = {
+        dataURL,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+        thumbURL,
+        bbox: null,
+        originPath: null
+      };
+      selectedImageId = id; selectedCifId = null;
+      updateAttachmentsUI();
+      return id;
+    }
+
+    async function handleCifFile(file) {
+      const id = uid();
+      const text = await readAsText(file);
+      cifStore[id] = { name: file.name, size: file.size, text };
+      selectedCifId = id; selectedImageId = null;
+      updateAttachmentsUI();
+    }
+
+    function readAsDataURL(file) {
+      return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsDataURL(file);
+      });
+    }
+    function readAsText(file) {
+      return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsText(file);
+      });
+    }
+    function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+    }
+    function makeThumbnail(img, targetMaxW = 240) {
+      const s = Math.min(1, targetMaxW / img.naturalWidth);
+      const w = Math.round(img.naturalWidth * s);
+      const h = Math.round(img.naturalHeight * s);
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const c = cv.getContext('2d');
+      c.drawImage(img, 0, 0, w, h);
+      return { thumbURL: cv.toDataURL('image/png'), width: w, height: h };
+    }
+
+    function appendThumbToBubble(bubbleElem, imageId, allowBBox = true) {
+      const info = imageStore[imageId];
+      const wrap = document.createElement('div');
+      wrap.className = 'thumb-wrap';
+      wrap.dataset.imageId = imageId;
+      const img = document.createElement('img');
+      img.className = 'thumb-img';
+      img.src = info.thumbURL;
+      const overlay = document.createElement('canvas');
+      overlay.className = 'thumb-overlay';
+      img.onload = () => {
+        overlay.width = img.clientWidth;
+        overlay.height = img.clientHeight;
+        drawThumbBBox(imageId, overlay);
+      };
+      wrap.appendChild(img);
+      wrap.appendChild(overlay);
+      if (allowBBox) {
+        wrap.addEventListener('click', () => openImageModal(imageId));
+      } else {
+        wrap.addEventListener('click', () => {
+          const info = imageStore[imageId];
+          if (info) enlargeChatImage(info.dataURL, info.bbox, info.width, info.height);
+        });
+      }
+      bubbleElem.appendChild(wrap);
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function drawThumbBBox(imageId, canvas) {
+      const info = imageStore[imageId];
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width, canvas.height);
+      if (!info || !info.bbox) return;
+      const sx = canvas.width / info.width;
+      const sy = canvas.height / info.height;
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(info.bbox.x * sx, info.bbox.y * sy, info.bbox.w * sx, info.bbox.h * sy);
+    }
+
+    function updateAttachmentsUI() {
+      attachmentPreview.innerHTML = '';
+      if (selectedImageId) {
+        const info = imageStore[selectedImageId];
+        const item = document.createElement('div');
+        item.className = 'attachment-item';
+        item.dataset.imageId = selectedImageId;
+        const imgEl = document.createElement('img');
+        imgEl.src = info.thumbURL;
+        const overlay = document.createElement('canvas');
+        overlay.style.pointerEvents = 'none';
+        const drawOverlay = () => {
+          overlay.width = item.clientWidth;
+          overlay.height = item.clientHeight;
+          const ctx = overlay.getContext('2d');
+          ctx.clearRect(0, 0, overlay.width, overlay.height);
+          if (info.bbox) {
+            const sx = overlay.width / info.width;
+            const sy = overlay.height / info.height;
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(info.bbox.x * sx, info.bbox.y * sy, info.bbox.w * sx, info.bbox.h * sy);
+          }
+        };
+        imgEl.onload = () => setTimeout(drawOverlay, 0);
+        const del = document.createElement('div');
+        del.className = 'delete-btn';
+        del.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+        del.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectedImageId = null;
+          updateAttachmentsUI();
+        });
+        item.appendChild(imgEl);
+        item.appendChild(overlay);
+        item.appendChild(del);
+        item.addEventListener('click', () => openImageModal(selectedImageId));
+        attachmentPreview.appendChild(item);
+      } else if (selectedCifId) {
+        const cf = cifStore[selectedCifId];
+        const pill = document.createElement('div');
+        pill.className = 'attachment-file-pill';
+        const icon = document.createElement('span'); icon.textContent = '📄';
+        const name = document.createElement('span'); name.textContent = cf.name;
+        const del = document.createElement('span');
+        del.className = 'delete-btn';
+        del.style.position = 'relative'; del.style.top = '0'; del.style.right = '0';
+        del.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+        del.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectedCifId = null;
+          updateAttachmentsUI();
+        });
+        pill.appendChild(icon); pill.appendChild(name); pill.appendChild(del);
+        attachmentPreview.appendChild(pill);
+      }
+      if (selectedImageId || selectedCifId) {
+        attachmentPreview.removeAttribute('hidden');
+      } else {
+        attachmentPreview.setAttribute('hidden', '');
+      }
+    }
+
+    // Append a message bubble
+    function addMessageBubble(sender, html) {
+      const wrap = document.createElement('div');
+      wrap.className = 'chat-message ' + sender;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble';
+
+      const clean = (html || '').replace(/\s+$/g, '');
+      if (window.marked) {
+        bubble.innerHTML = marked.parse(clean);
+      } else {
+        bubble.classList.add('plain');
+        bubble.textContent = clean;
+      }
+
+      wrap.appendChild(bubble);
+      chatArea.appendChild(wrap);
+      chatArea.scrollTop = chatArea.scrollHeight;
+
+      // After inserting a message, switch to "has messages" layout
+      updateLayoutClass();
+
+      return bubble;
+    }
+
+    // Zoom + edit bbox
+    function openImageModal(imageId) {
+      selectedImageId = imageId; selectedCifId = null;
+      const info = imageStore[imageId];
+      const img = new Image();
+      img.onload = () => {
+        const maxW = Math.min(window.innerWidth * 0.9, img.naturalWidth);
+        const maxH = Math.min(window.innerHeight * 0.9, img.naturalHeight);
+        s_modal = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+        modalCanvas.width  = Math.round(img.naturalWidth  * s_modal);
+        modalCanvas.height = Math.round(img.naturalHeight * s_modal);
+        modalBBox = null;
+        if (info.bbox) {
+          modalBBox = {
+            x: info.bbox.x * s_modal,
+            y: info.bbox.y * s_modal,
+            w: info.bbox.w * s_modal,
+            h: info.bbox.h * s_modal
+          };
+        }
+        drawModal(img);
+        modalOverlay.style.display = 'flex';
+      };
+      img.src = info.dataURL;
+    }
+    function drawModal(imgObj) {
+      mctx.clearRect(0,0,modalCanvas.width, modalCanvas.height);
+      mctx.drawImage(imgObj, 0, 0, modalCanvas.width, modalCanvas.height);
+      if (modalBBox) {
+        mctx.strokeStyle = 'red';
+        mctx.lineWidth = 2;
+        mctx.strokeRect(modalBBox.x, modalBBox.y, modalBBox.w, modalBBox.h);
+      }
+    }
+    modalCanvas.addEventListener('mousedown', (e) => {
+      if (modalOverlay.style.display !== 'flex') return;
+      const rect = modalCanvas.getBoundingClientRect();
+      isDrawing = true;
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+      modalBBox = { x: startX, y: startY, w: 0, h: 0 };
+      redrawCurrentModal();
+    });
+    modalCanvas.addEventListener('mousemove', (e) => {
+      if (!isDrawing) return;
+      const rect = modalCanvas.getBoundingClientRect();
+      const currX = e.clientX - rect.left;
+      const currY = e.clientY - rect.top;
+      modalBBox.w = currX - startX;
+      modalBBox.h = currY - startY;
+      redrawCurrentModal();
+    });
+    modalCanvas.addEventListener('mouseup', () => { isDrawing = false; });
+    modalCanvas.addEventListener('mouseleave', () => { isDrawing = false; });
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target !== modalOverlay) return;
+      if (selectedImageId && modalBBox) {
+        let { x, y, w, h } = modalBBox;
+        if (w < 0) { x = x + w; w = -w; }
+        if (h < 0) { y = y + h; h = -h; }
+        const bx = x / s_modal;
+        const by = y / s_modal;
+        const bw = w / s_modal;
+        const bh = h / s_modal;
+        const info = imageStore[selectedImageId];
+        info.bbox = { x: bx, y: by, w: bw, h: bh };
+        const wraps = chatArea.querySelectorAll(`.thumb-wrap[data-image-id="${selectedImageId}"]`);
+        wraps.forEach(wrap => {
+          const overlay = wrap.querySelector('.thumb-overlay');
+          if (overlay) drawThumbBBox(selectedImageId, overlay);
+        });
+        updateAttachmentsUI();
+      }
+      modalOverlay.style.display = 'none';
+    });
+    function redrawCurrentModal() {
+      if (!selectedImageId) return;
+      const info = imageStore[selectedImageId];
+      const img = new Image();
+      img.onload = () => drawModal(img);
+      img.src = info.dataURL;
+    }
+
+    // Zoom-only (no bbox editing)
+    function enlargeChatImage(url, bbox = null, origWidth = null, origHeight = null) {
+      const overlay = document.getElementById('chatImageModalOverlay');
+      const modalImg = document.getElementById('chatModalImage');
+      const wrapper = document.getElementById('chatImageWrapper');
+      const bboxOverlay = document.getElementById('chatBBoxOverlay');
+      const tempImg = new Image();
+      tempImg.onload = function() {
+        const vw = window.innerWidth * 0.95;
+        const vh = window.innerHeight * 0.95;
+        const scale = Math.min(vw / tempImg.naturalWidth, vh / tempImg.naturalHeight);
+        const displayW = tempImg.naturalWidth * scale;
+        const displayH = tempImg.naturalHeight * scale;
+        modalImg.style.width = displayW + 'px';
+        modalImg.style.height = displayH + 'px';
+        modalImg.src = url;
+        wrapper.style.width = displayW + 'px';
+        wrapper.style.height = displayH + 'px';
+        if (bbox && origWidth && origHeight) {
+          const scaleX = displayW / origWidth;
+          const scaleY = displayH / origHeight;
+          const x = bbox.x * scaleX;
+          const y = bbox.y * scaleY;
+          const w = bbox.w * scaleX;
+          const h = bbox.h * scaleY;
+          bboxOverlay.style.display = 'block';
+          bboxOverlay.style.left = x + 'px';
+          bboxOverlay.style.top = y + 'px';
+          bboxOverlay.style.width = w + 'px';
+          bboxOverlay.style.height = h + 'px';
+        } else {
+          bboxOverlay.style.display = 'none';
+        }
+        overlay.style.display = 'flex';
+      };
+      tempImg.src = url;
+    }
+    function closeChatImageModal(event) {
+      if (event.target.id === 'chatImageModalOverlay' || event.target.tagName === 'IMG') {
+        document.getElementById('chatImageModalOverlay').style.display = 'none';
+      }
+    }
+
+    // CoT expand/collapse (UI only)
+    function toggleCoT(container) {
+      if (container.classList.contains('collapsed')) {
+        container.classList.remove('collapsed');
+        container.style.maxHeight = container.scrollHeight + 'px';
+        container.addEventListener('transitionend', function clearMax() {
+          container.style.maxHeight = '';
+          container.removeEventListener('transitionend', clearMax);
+        });
+      } else {
+        container.style.maxHeight = container.scrollHeight + 'px';
+        container.offsetHeight;
+        container.style.maxHeight = '0px';
+        container.classList.add('collapsed');
+      }
+    }
+
+    // Create a new bot bubble (with "thinking" label, CoT container, and final content container)
+    function createBotBubble() {
+      const wrap = document.createElement('div');
+      wrap.classList.add('chat-message', 'bot');
+      const bubbleDiv = document.createElement('div');
+      bubbleDiv.classList.add('chat-bubble');
+      const thinkingLabel = document.createElement('div');
+      thinkingLabel.classList.add('thinking-label');
+      thinkingLabel.innerText = 'thinking';
+      const cotContainer = document.createElement('div');
+      cotContainer.classList.add('cot-container');
+      const finalResponseContainer = document.createElement('div');
+      finalResponseContainer.classList.add('final-response');
+      bubbleDiv.appendChild(thinkingLabel);
+      bubbleDiv.appendChild(cotContainer);
+      bubbleDiv.appendChild(finalResponseContainer);
+      wrap.appendChild(bubbleDiv);
+      chatArea.appendChild(wrap);
+      chatArea.scrollTop = chatArea.scrollHeight;
+
+      // After inserting a bot message, also update layout (ensure "has messages")
+      updateLayoutClass();
+
+      thinkingLabel.addEventListener('click', function () {
+        toggleCoT(cotContainer);
+      });
+      return { bubbleDiv, cotContainer, finalResponseContainer, thinkingLabel };
+    }
+
+    // Send flow
+    sendBtn.addEventListener('click', sendMessage);
+    // IME composition-safe Enter handling
+    let composing = false;
+    chatInput.addEventListener('compositionstart', () => { composing = true; });
+    chatInput.addEventListener('compositionend',   () => { composing = false; });
+    chatInput.addEventListener('keydown', (e) => {
+      const isEnter = (e.key === 'Enter');
+      const imeActive = composing || e.isComposing || e.keyCode === 229;
+      if (isEnter && !e.shiftKey && !imeActive) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    let currentBotBubble = null;
+    let userId = localStorage.getItem('userId') || null;
+    // Do NOT bind to any existing session on page load; first send starts new
+    let currentSessionId = null;
+    // If true, next send starts a brand-new session even if one is active
+    let forceNewSessionNextSend = false;
+
+    // Clear conversation: UI + reset backend user id
+    async function clearConversation() {
+      try {
+        // 1) Clear UI messages
+        while (chatArea.firstChild) chatArea.removeChild(chatArea.firstChild);
+        // 2) Reset attachments/state
+        Object.keys(imageStore).forEach(k => delete imageStore[k]);
+        Object.keys(cifStore).forEach(k => delete cifStore[k]);
+        selectedImageId = null; selectedCifId = null;
+        updateAttachmentsUI();
+        updateTextareaHeight();
+        updateLayoutClass();
+        // Re-seed random samples for a fresh start
+        try { populateSamples(); } catch {}
+        // 3) Reset current session only; keep userId so multiple sessions group under same user
+        currentSessionId = null;
+        // 4) Ask backend to cleanup agent state (does not create a new session)
+        const resp = await fetch('/api', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'clear' })
+        });
+        // Drain stream quietly
+        if (resp && resp.body) { try { await resp.body.cancel(); } catch {} }
+        // refresh history sidebar
+        try { await loadHistoryList(false); } catch {}
+      } catch (err) {
+        console.warn('Clear conversation failed:', err);
+      }
+    }
+    clearBtn.addEventListener('click', clearConversation);
+
+    function sendMessage() {
+      const text = chatInput.value.trim();
+      const hasAttachment = selectedImageId || selectedCifId;
+      if (!text && !hasAttachment) return;
+
+      const imageToSend = selectedImageId;
+      const cifToSend   = selectedCifId;
+
+      // User message
+      const userBubble = addMessageBubble('user', text || '');
+      if (imageToSend) appendThumbToBubble(userBubble, imageToSend, false);
+      if (cifToSend) {
+        const cf = cifStore[cifToSend];
+        const sizeKB = Math.max(1, Math.round(cf.size / 1024));
+        const pillDiv = document.createElement('div');
+        pillDiv.className = 'file-pill';
+        pillDiv.innerHTML = `📄 <span class="name">${cf.name}</span> <span class="meta">· ${sizeKB} KB</span>`;
+        userBubble.appendChild(pillDiv);
+      }
+
+      // Reset input & attachments
+      chatInput.value = '';
+      chatInput.style.height = 'auto';
+      selectedImageId = null; selectedCifId = null;
+      updateAttachmentsUI();
+      updateTextareaHeight();
+
+      // payload
+      const payload = buildUnifiedPayload({
+        text: text || undefined,
+        imageId: imageToSend || undefined,
+        cifId: cifToSend || undefined
+      });
+
+      // Bot bubble (streaming)
+      currentBotBubble = createBotBubble();
+      setSendButtonLoading(true);
+      startMMStream(payload);
+    }
+
+    function buildUnifiedPayload({ text, imageId, cifId }) {
+      const p = {};
+      if (userId) p.user_id = userId;
+      if (text)  p.text = text;
+      p.files = [];
+      if (imageId) {
+        const info = imageStore[imageId];
+        if (info.originPath && info.originPath.startsWith('/api/samples/')) {
+          p.files.push({ type: 'image', path: info.originPath });
+        } else {
+          p.files.push({ type: 'image', data: info.dataURL });
+        }
+        if (info.bbox) {
+          const xc = (info.bbox.x + info.bbox.w/2) / info.width;
+          const yc = (info.bbox.y + info.bbox.h/2) / info.height;
+          const ww = info.bbox.w / info.width;
+          const hh = info.bbox.h / info.height;
+          p.bbox = { x_center: xc, y_center: yc, width: ww, height: hh };
+        }
+      }
+      if (cifId) {
+        const cf = cifStore[cifId];
+        p.files.push({ type: 'cif', name: cf.name, text: cf.text });
+      }
+      if (modelSelect && modelSelect.value) p.model = modelSelect.value;
+      // Session strategy:
+      // - If explicitly forced (e.g., user clicked a sample), start a brand-new session.
+      // - Else if we already have a session, keep it.
+      // - Else if UI is fresh (no messages), start a new one.
+      if (forceNewSessionNextSend) {
+        p.session_id = 'new_' + uid();
+        forceNewSessionNextSend = false; // consume the flag
+      } else if (currentSessionId) {
+        p.session_id = currentSessionId;
+      } else {
+        const isFreshConversation = (!chatArea || !chatArea.children || chatArea.children.length === 0);
+        if (isFreshConversation) p.session_id = 'new_' + uid();
+      }
+      return p;
+    }
+
+    async function startMMStream(payload) {
+      try {
+        // Helpful debug: log approximate payload size
+        try { console.debug('send /api payload ~KB:', Math.round(JSON.stringify(payload).length / 1024)); } catch {}
+
+        const response = await fetch('/api', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          let bodyText = '';
+          try { bodyText = await response.text(); } catch {}
+          const msg = `Request failed: ${response.status} ${response.statusText}${bodyText ? ' - ' + bodyText.slice(0, 200) : ''}`;
+          throw new Error(msg);
+        }
+        if (!response.body) throw new Error('ReadableStream not supported');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) { setSendButtonLoading(false); break; }
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const obj = JSON.parse(line);
+              if (obj.user_id) { userId = obj.user_id; localStorage.setItem('userId', userId); }
+              if (obj.session_id) { currentSessionId = obj.session_id; }
+              if (obj.type === 'step') {
+                if (currentBotBubble && currentBotBubble.cotContainer) {
+                  const cotElem = document.createElement('div');
+                  cotElem.classList.add('cot-item');
+                  const prefix = obj.source ? ('**' + obj.source + '**: ') : '';
+                  cotElem.innerHTML = window.marked ? marked.parse(prefix + (obj.text || '')) : (prefix + (obj.text || ''));
+                  currentBotBubble.cotContainer.appendChild(cotElem);
+                  if (Array.isArray(obj.images)) appendImagesFromRefs(obj.images, currentBotBubble.cotContainer);
+                  currentBotBubble.cotContainer.style.maxHeight = currentBotBubble.cotContainer.scrollHeight + 'px';
+                }
+                continue;
+              }
+              if (obj.type === 'final') {
+                if (currentBotBubble && currentBotBubble.finalResponseContainer) {
+                  const finalText = obj.text || obj.response || '';
+                  currentBotBubble.finalResponseContainer.innerHTML = window.marked ? marked.parse(finalText) : finalText;
+                  if (Array.isArray(obj.images)) appendImagesFromRefs(obj.images, currentBotBubble.finalResponseContainer);
+                  if (currentBotBubble.cotContainer) {
+                    currentBotBubble.cotContainer.style.maxHeight = currentBotBubble.cotContainer.scrollHeight + 'px';
+                    currentBotBubble.cotContainer.offsetHeight;
+                    currentBotBubble.cotContainer.style.maxHeight = '0px';
+                    currentBotBubble.cotContainer.classList.add('collapsed');
+                  }
+                  if (currentBotBubble.thinkingLabel) {
+                    currentBotBubble.thinkingLabel.style.animation = 'none';
+                    currentBotBubble.thinkingLabel.style.color = '#aaa';
+                  }
+                }
+                setSendButtonLoading(false);
+                try { loadHistoryList(true); } catch {}
+                continue;
+              }
+              if (obj.response) {
+                if (currentBotBubble && currentBotBubble.finalResponseContainer) {
+                  currentBotBubble.finalResponseContainer.innerHTML = window.marked ? marked.parse(obj.response) : obj.response;
+                }
+                setSendButtonLoading(false);
+                try { loadHistoryList(true); } catch {}
+                continue;
+              }
+            } catch {
+              console.warn('Invalid JSON frame');
+            }
+          }
+        }
+      } catch (err) {
+        console.error('fetch/stream error:', err);
+        if (currentBotBubble && currentBotBubble.finalResponseContainer) {
+          const msg = (err && err.message) ? String(err.message) : 'Request failed.';
+          const friendly = /\b413\b/.test(msg) ? 'Upload too large (413). Try a smaller image or increase server proxy limits.' : msg;
+          currentBotBubble.finalResponseContainer.textContent = friendly;
+        }
+        setSendButtonLoading(false);
+      }
+    }
+
+    function renderBotFinal(bubbleElem, text, images) {
+      bubbleElem.innerHTML = text ? (window.marked ? marked.parse(text) : text) : '(no content)';
+      appendImagesFromRefs(images, bubbleElem);
+      chatArea.scrollTop = chatArea.scrollHeight;
+      setSendButtonLoading(false);
+    }
+    function appendImagesFromRefs(refs, targetElem) {
+      if (!Array.isArray(refs)) return;
+      const isUserBubble = !!(targetElem && targetElem.parentElement && targetElem.parentElement.classList && targetElem.parentElement.classList.contains('user'));
+      const maxW = isUserBubble ? 240 : 480;
+      refs.forEach(ref => {
+        if (!ref) return;
+        if (ref.kind === 'base64' && ref.data) {
+          const imgEl = document.createElement('img');
+          let src;
+          if (typeof ref.data === 'string' && ref.data.startsWith('/')) {
+            // Some older logs incorrectly stored URL paths under 'base64'; treat as URL
+            src = ref.data;
+          } else {
+            src = ref.data.startsWith('data:image') ? ref.data : ('data:image/png;base64,' + ref.data);
+          }
+          imgEl.src = src;
+          imgEl.style.display = 'block';
+          imgEl.style.marginTop = '8px';
+          imgEl.style.maxWidth = maxW + 'px';
+          imgEl.style.cursor = 'pointer';
+          imgEl.addEventListener('click', function() { enlargeChatImage(src); });
+          targetElem.appendChild(imgEl);
+        } else if (ref.kind === 'path' && ref.path) {
+          // If path is a server URL we can fetch (e.g., /api/samples/...), render it directly
+          if (typeof ref.path === 'string' && ref.path.startsWith('/api/samples/')) {
+            const imgEl = document.createElement('img');
+            imgEl.src = ref.path;
+            imgEl.style.display = 'block';
+            imgEl.style.marginTop = '8px';
+            imgEl.style.maxWidth = maxW + 'px';
+            imgEl.style.cursor = 'pointer';
+            imgEl.addEventListener('click', function() { enlargeChatImage(ref.path); });
+            targetElem.appendChild(imgEl);
+          } else {
+            const note = document.createElement('div');
+            note.style.fontSize = '12px';
+            note.style.color = '#666';
+            note.textContent = 'Image saved: ' + ref.path;
+            targetElem.appendChild(note);
+          }
+        }
+      });
+    }
+
+    // Recompute overlay on viewport change
+    window.addEventListener('resize', () => {
+      if (modalOverlay.style.display === 'flex' && selectedImageId) {
+        openImageModal(selectedImageId);
+      }
+    });
+
+    // Sync layout once on init (usually empty)
+    updateLayoutClass();
+
+    // ---------- History chips toggle ----------
+    historyToggle.addEventListener('click', async () => {
+      if (historySuggestions.style.display === 'none' || historySuggestions.style.display === '') {
+        await loadHistoryList();
+        await buildHistorySuggestions();
+        positionHistoryOverlay();
+      } else {
+        hideHistorySuggestions();
+      }
+    });
+
+    // Click outside to close the overlay
+    document.addEventListener('click', (e) => {
+      const isOpen = !(historySuggestions.style.display === 'none' || historySuggestions.style.display === '');
+      if (!isOpen) return;
+      const target = e.target;
+      if (historySuggestions.contains(target)) return;
+      if (historyToggle.contains && historyToggle.contains(target)) return;
+      hideHistorySuggestions();
+    });
+
+    async function loadHistoryList(bindIfNull = false) {
+      try {
+        const params = userId ? ('?user_id=' + encodeURIComponent(userId)) : '';
+        const resp = await fetch('/api/history/list' + params);
+        if (!resp.ok) return [];
+        const data = await resp.json();
+        const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+        if (bindIfNull && !currentSessionId && sessions[0]) { currentSessionId = sessions[0].id; }
+        return sessions;
+      } catch (e) {
+        return [];
+      }
+    }
+
+    async function restoreSession(sessionId) {
+      try {
+        const params = userId ? ('?user_id=' + encodeURIComponent(userId)) : '';
+        const resp = await fetch('/api/history/session/' + encodeURIComponent(sessionId) + params);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const sess = data.session;
+        // Clear UI and attachments
+        while (chatArea.firstChild) chatArea.removeChild(chatArea.firstChild);
+        Object.keys(imageStore).forEach(k => delete imageStore[k]);
+        Object.keys(cifStore).forEach(k => delete cifStore[k]);
+        selectedImageId = null; selectedCifId = null;
+        updateAttachmentsUI();
+        updateTextareaHeight();
+        // Render messages
+        if (Array.isArray(sess.messages)) {
+          sess.messages.forEach(m => {
+            if (m.role === 'user') {
+              const bubble = addMessageBubble('user', m.content || '');
+              if (Array.isArray(m.images)) appendImagesFromRefs(m.images, bubble);
+            } else {
+              // assistant turn with optional steps and images
+              const bot = createBotBubble();
+              if (Array.isArray(m.steps) && bot.cotContainer) {
+                m.steps.forEach(step => {
+                  const cotElem = document.createElement('div');
+                  cotElem.classList.add('cot-item');
+                  const prefix = step.source ? ('**' + step.source + '**: ') : '';
+                  const text = prefix + (step.text || '');
+                  cotElem.innerHTML = window.marked ? marked.parse(text) : text;
+                  bot.cotContainer.appendChild(cotElem);
+                  if (Array.isArray(step.images)) appendImagesFromRefs(step.images, bot.cotContainer);
+                });
+                bot.cotContainer.style.maxHeight = bot.cotContainer.scrollHeight + 'px';
+                bot.cotContainer.offsetHeight;
+                bot.cotContainer.style.maxHeight = '0px';
+                bot.cotContainer.classList.add('collapsed');
+              }
+              if (bot.finalResponseContainer) {
+                const finalText = m.content || '';
+                bot.finalResponseContainer.innerHTML = window.marked ? marked.parse(finalText) : finalText;
+                if (Array.isArray(m.images)) appendImagesFromRefs(m.images, bot.finalResponseContainer);
+                if (bot.thinkingLabel) {
+                  bot.thinkingLabel.style.animation = 'none';
+                  bot.thinkingLabel.style.color = '#aaa';
+                }
+              }
+            }
+          });
+        }
+        currentSessionId = sess.id;
+        await loadHistoryList();
+        // Close chips after choosing a session
+        hideHistorySuggestions();
+      } catch (e) {
+        console.warn('restoreSession failed', e);
+      }
+    }
+
+    // Load history on startup (do not bind to any session)
+    loadHistoryList(false);
+
+    // ---------- History suggestions under input ----------
+    function pickDisplayableRef(refs) {
+      if (!Array.isArray(refs)) return null;
+      for (let i = refs.length - 1; i >= 0; i--) {
+        const r = refs[i];
+        if (!r) continue;
+        if (r.kind === 'base64' && r.data) return r;
+        if (r.kind === 'path' && typeof r.path === 'string' && r.path.startsWith('/api/samples/')) return r;
+      }
+      return null;
+    }
+
+    async function sessionLastImageThumb(sess) {
+      if (!sess || !Array.isArray(sess.messages)) return null;
+      for (let i = sess.messages.length - 1; i >= 0; i--) {
+        const m = sess.messages[i];
+        const r = pickDisplayableRef(m && m.images);
+        if (r) {
+          try {
+            let src = null;
+            if (r.kind === 'base64') {
+              src = r.data.startsWith('data:image') ? r.data : ('data:image/png;base64,' + r.data);
+            } else if (r.kind === 'path') {
+              src = r.path;
+            }
+            if (!src) continue;
+            const img = await loadImage(src);
+            const { thumbURL } = makeThumbnail(img, 160);
+            return thumbURL;
+          } catch {}
+        }
+      }
+      return null;
+    }
+
+    async function buildHistorySuggestions() {
+      try {
+        const params = userId ? ('?user_id=' + encodeURIComponent(userId)) : '';
+        const resp = await fetch('/api/history/list' + params);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const items = Array.isArray(data.sessions) ? data.sessions.slice(0,3) : [];
+        if (!items.length) {
+          hideHistorySuggestions();
+          showNotice('No Recent History');
+          return;
+        }
+        historySuggestions.style.display = 'grid';
+        historySuggestions.innerHTML = '';
+        for (const s of items) {
+          const sessResp = await fetch('/api/history/session/' + encodeURIComponent(s.id) + params);
+          if (!sessResp.ok) continue;
+          const sessData = await sessResp.json();
+          const sess = sessData.session;
+          const thumb = await sessionLastImageThumb(sess);
+          const div = document.createElement('div');
+          div.className = 'history-chip';
+          div.innerHTML = `
+            <div class="history-chip-inner">
+              ${thumb ? `<img class="history-thumb" src="${thumb}" alt="thumb">` : `<div class="history-thumb placeholder">⏱</div>`}
+              <div class="history-text">${(s.title || 'Untitled')}</div>
+            </div>
+            <div class="chip-delete" title="Delete"><i class="fa-solid fa-xmark"></i></div>`;
+          div.addEventListener('click', () => restoreSession(s.id));
+          const del = div.querySelector('.chip-delete');
+          if (del) {
+            del.addEventListener('click', (e) => {
+              e.stopPropagation();
+              deleteSession(s.id);
+            });
+          }
+          historySuggestions.appendChild(div);
+          requestAnimationFrame(() => div.classList.add('show'));
+        }
+        positionHistoryOverlay();
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    // Position the overlay right above the input container
+    function positionHistoryOverlay() {
+      if (historySuggestions.style.display === 'none' || historySuggestions.style.display === '') return;
+      const input = document.querySelector('.chat-input-container');
+      if (!input) return;
+      const rect = input.getBoundingClientRect();
+      const gap = 8; // space between overlay and input
+      historySuggestions.style.left = rect.left + 'px';
+      historySuggestions.style.width = rect.width + 'px';
+      historySuggestions.style.bottom = (window.innerHeight - rect.top + gap) + 'px';
+    }
+
+    // Reposition on resize/scroll while open
+    window.addEventListener('resize', positionHistoryOverlay);
+    window.addEventListener('scroll', positionHistoryOverlay, true);
+
+    async function deleteSession(sessionId) {
+      try {
+        const payload = { session_id: sessionId };
+        if (userId) payload.user_id = userId;
+        const resp = await fetch('/api/history/session/delete', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        });
+        if (!resp.ok) {
+          try {
+            const err = await resp.json();
+            showNotice(err && err.error ? ('Delete failed: ' + err.error) : 'Delete failed');
+          } catch { showNotice('Delete failed'); }
+          return;
+        }
+        // If deleting currently loaded session, clear UI
+        if (currentSessionId === sessionId) {
+          try { while (chatArea.firstChild) chatArea.removeChild(chatArea.firstChild); } catch {}
+          currentSessionId = null;
+          updateLayoutClass();
+        }
+        // Rebuild chips
+        await buildHistorySuggestions();
+        showNotice('Deleted');
+      } catch (e) {
+        showNotice('Delete failed');
+      }
+    }
+
+    function hideHistorySuggestions() {
+      const nodes = Array.from(historySuggestions.children || []);
+      nodes.forEach(n => n.classList.add('hide'));
+      setTimeout(() => { 
+        historySuggestions.style.display = 'none'; 
+        historySuggestions.innerHTML=''; 
+        updateTextareaHeight();
+      }, 180);
+    }
+
+    function showNotice(msg) {
+      // Ensure a single toast container exists (fixed, top-right)
+      let container = document.getElementById('toastContainer');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+      }
+      // Create a toast element
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = msg || 'Notice';
+      container.appendChild(toast);
+      // Animate in
+      requestAnimationFrame(() => toast.classList.add('show'));
+      // Auto-dismiss after a short delay
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => { try { toast.remove(); } catch {} }, 220);
+      }, 2200);
+    }
+  </script>
+</body>
+</html>
