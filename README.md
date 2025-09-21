@@ -29,11 +29,7 @@ EMSeek bridges raw electron microscopy (EM) data to actionable materials insight
 - Scales from exploratory analysis to production by exposing both browser and programmable interfaces, backed by configurable models and data stores.
 
 ## Demo
-<p align="center">
-  <a href="https://youtu.be/GWGP8g39lV8" target="_blank" rel="noopener noreferrer">
-    <img src="https://img.youtube.com/vi/GWGP8g39lV8/hqdefault.jpg" alt="EMSeek demo video" width="720" />
-  </a>
-</p>
+<video src='https://github.com/user-attachments/assets/d13b118a-ea24-41ae-ae28-c93b36374cc3'></video>
 
 ## Quick Start
 
